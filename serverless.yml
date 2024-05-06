@@ -1,0 +1,121 @@
+service: notes-api-new
+# app and org for use with dashboard.serverless.com
+#app: your-app-name
+#org: your-org-name
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+frameworkVersion: '3'
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: us-east-1
+
+package:
+  individually: true
+
+custom:
+  esbuild:
+    bundle: true
+    minify: true
+  prune:
+    automatic: true
+    number: 1
+
+functions:
+  authorizer:
+    handler: authorizer.handler
+    environment:
+      COGNITO_USER_POOL_ID: !Ref cognitoUP
+      COGNIT_WEB_CLIENT_ID: !Ref cognitoUserPoolWebclient
+
+  createnote:
+    handler: functions/notes/createNote.handler
+    environment:
+      NOTES_TABLE_NAME: !Ref notesTable
+      AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource: !GetAtt notesTable.Arn
+    events:
+      - http:
+          method: post
+          path: notes
+          authorizer: authorizer
+
+  getnote:
+    handler: functions/notes/getNote.handler
+    environment:
+      NOTES_TABLE_NAME: !Ref notesTable
+      AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    iamRoleStatements:
+      - Effect: Allow
+        Action: dynamodb:GetItem
+        Resource: !GetAtt notesTable.Arn
+    events:
+      - http:
+          path: notes/{id}
+          method: get
+          authorizer: authorizer
+
+  updatenote:
+    handler: functions/notes/updateNote.handler
+    environment:
+      NOTES_TABLE_NAME: !Ref notesTable
+      AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+        Resource: !GetAtt notesTable.Arn
+    events:
+      - http:
+          method: put
+          path: notes/{id}
+          authorizer: authorizer
+
+  deletenote:
+    handler: functions/notes/deleteNote.handler
+    environment:
+      NOTES_TABLE_NAME: !Ref notesTable
+      AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:DeleteItem
+        Resource: !GetAtt notesTable.Arn
+    events:
+      - http:
+          method: delete
+          path: notes/{id}
+          authorizer: authorizer
+
+  getallnotes:
+    handler: functions/notes/getAllNotes.handler
+    environment:
+      NOTES_TABLE_NAME: !Ref notesTable
+      AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Scan
+        Resource: !GetAtt notesTable.Arn
+    events:
+      - http:
+          method: get
+          path: notes
+          authorizer:
+            name: cognitoUP_authorizer
+            type: COGNITO_USER_POOLS
+            arn: !GetAtt cognitoUP.Arn
+plugins:
+  - serverless-prune-plugin
+  - serverless-iam-roles-per-function
+  - serverless-esbuild
+
+# you can add CloudFormation resource templates here
+resources:
+  Resources: ${file(resources.yml)}

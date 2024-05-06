@@ -1,0 +1,66 @@
+#Notes dynamoDB table
+notesTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: notes-${self:provider.stage}
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+    KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+
+#Cognito
+#Cognito user pool
+cognitoUP:
+  Type: AWS::Cognito::UserPool
+  Properties:
+    UserPoolName: notesUP-${self:provider.stage}
+
+#User pool web client
+cognitoUserPoolWebclient:
+  Type: AWS::Cognito::UserPoolClient
+  Properties:
+    UserPoolId: !Ref cognitoUP
+    ClientName: web
+    AllowedOAuthFlows:
+      - implicit
+    ExplicitAuthFlows:
+      - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      - ALLOW_REFRESH_TOKEN_AUTH
+      - ALLOW_CUSTOM_AUTH
+      - ALLOW_USER_SRP_AUTH
+    CallbackURLs:
+      - http://localhost:3000
+    AllowedOAuthFlowsUserPoolClient: true
+    AllowedOAuthScopes:
+      - phone
+      - email
+      - openid
+      - profile
+    SupportedIdentityProviders:
+      - COGNITO
+
+#Cognito user pool domain
+cognitoUserPoolDomain:
+  Type: AWS::Cognito::UserPoolDomain
+  Properties:
+    UserPoolId: !Ref cognitoUP
+    Domain: mynotecssd-${self:provider.stage}
+
+Type: AWS::Cognito::UserPoolGroup
+Properties:
+  Description: 'Admins group'
+  GroupName: 'Admins'
+  Precedence: 0
+  RoleArn: 'arn:aws:iam::${self:provider.accountId}:role/notes-${self:provider.stage}-adminRole'
+  UserPoolId: !Ref cognitoUP
+
+#SSM Parameter store
+cognitoUPParameterStore:
+  Type: AWS::SSM::Parameter
+  Properties:
+    Name: /notes/${self:provider.stage}/userPoolId
+    Type: String
+    Value: !GetAtt cognitoUP.Arn
